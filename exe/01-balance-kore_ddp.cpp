@@ -618,6 +618,7 @@ void run () {
 	// Send the stoppig event
 	somatic_d_event(&daemon_cx, SOMATIC__EVENT__PRIORITIES__NOTICE,
 					 SOMATIC__EVENT__CODES__PROC_STOPPING, NULL, NULL);
+
 }
 
 /* ******************************************************************************************** */
@@ -647,6 +648,7 @@ void init() {
 	bool initDDP = false;
 	//Create a thread to start and Compute MPC-DDP
 	pthread_t MPCDDPThread;
+	pthread_create(&MPCDDPThread,NULL, &MPCDDPCompute, NULL);
 
 
 }
