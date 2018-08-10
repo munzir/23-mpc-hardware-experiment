@@ -294,6 +294,9 @@ void run () {
 	// Initializing here helps to print logs of the previous state
 	Vector6d refState = Vector6d::Zero(), state = Vector6d::Zero(), error = Vector6d::Zero();
 
+	// Augment two state to represent x0 and y0.
+	Vector2d AugState = Vector2d::Zero();  
+
 	// Read the FT sensor wrenches, shift them on the wheel axis and display
 	size_t c_ = 0;
 	struct timespec t_now, t_prev = aa_tm_now();
@@ -343,6 +346,7 @@ void run () {
 
 		// Get the current state and ask the user if they want to start
 		getState(state, dt, &com);
+		updateAugStateReference(state,dt, AugState);     // Update Augmented State
 		if(debug) cout << "\nstate: " << state.transpose() << endl;
 		if(debug) cout << "com: " << com.transpose() << endl;
 		if(debug) cout << "WAIST ANGLE: " << krang->waist->pos[0] << endl;
@@ -434,172 +438,230 @@ void run () {
 
 		// =======================================================================
 		// Apply control: compute error, threshold and send current
+        if(MODE != 7){
+			// Compute the error term between reference and current, and weight with gains (spin separate)
+			if(debug) cout << "K: " << K.transpose() << endl;
+			error = state - refState;
 
-		// Compute the error term between reference and current, and weight with gains (spin separate)
-		if(debug) cout << "K: " << K.transpose() << endl;
-		error = state - refState;
+			// If in ground Lo mode and waist angle increases beyond 150.0 goto groundHi mode
+			if(MODE == 1) {
+				if((krang->waist->pos[0]-krang->waist->pos[1])/2.0 < 150.0*M_PI/180.0) {
+					MODE = 6;
+					K = K_groundHi;
+				}	
+			}
+			// If in ground Hi mode and waist angle decreases below 150.0 goto groundLo mode
+			else if(MODE == 6) {
+				if((krang->waist->pos[0]-krang->waist->pos[1])/2.0 > 150.0*M_PI/180.0) {
+					MODE = 1;
+					K = K_groundLo;
+				}	
+			}	
 
-		// If in ground Lo mode and waist angle increases beyond 150.0 goto groundHi mode
-		if(MODE == 1) {
-			if((krang->waist->pos[0]-krang->waist->pos[1])/2.0 < 150.0*M_PI/180.0) {
-				MODE = 6;
-				K = K_groundHi;
+			// If we are in the sit down mode, over write the reference
+			else if(MODE == 3) {
+				static const double limit = ((-103.0 / 180.0) * M_PI);
+				if(krang->imu < limit) {
+					printf("imu (%lf) < limit (%lf): changing to mode 1\n", krang->imu, limit);
+					MODE = 1;
+					K = K_groundLo;
+				}
+				else error(0) = krang->imu - limit;
+			}	
+			// if in standing up mode check if the balancing angle is reached and stayed, if so switch to balLow mode
+			else if(MODE == 2) {
+				if(fabs(state(0)) < 0.034) mode4iter++;
+				// Change to mode 4 (balance low) if stood up enough
+				if(mode4iter > mode4iterLimit) {
+					MODE = 4;
+					mode4iter = 0;
+					K = K_balLow;
+				}
+			}	
+			// COM error correction in balLow mode
+			else if(MODE == 4) {
+				error(0) += 0.03225;
 			}
-		}
-		// If in ground Hi mode and waist angle decreases below 150.0 goto groundLo mode
-		else if(MODE == 6) {
-			if((krang->waist->pos[0]-krang->waist->pos[1])/2.0 > 150.0*M_PI/180.0) {
-				MODE = 1;
-				K = K_groundLo;
+			// COM error correction in balHigh mode
+			else if(MODE == 5) {
+				error(0) += 0.03225;	
 			}
-		}
+			if(debug) cout << "error: " << error.transpose() << ", imu: " << krang->imu / M_PI * 180.0 << endl;
 
-		// If we are in the sit down mode, over write the reference
-		else if(MODE == 3) {
-			static const double limit = ((-103.0 / 180.0) * M_PI);
-			if(krang->imu < limit) {
-				printf("imu (%lf) < limit (%lf): changing to mode 1\n", krang->imu, limit);
-				MODE = 1;
-				K = K_groundLo;
-			}
-			else error(0) = krang->imu - limit;
-		}
-		// if in standing up mode check if the balancing angle is reached and stayed, if so switch to balLow mode
-		else if(MODE == 2) {
-			if(fabs(state(0)) < 0.034) mode4iter++;
-			// Change to mode 4 (balance low) if stood up enough
-			if(mode4iter > mode4iterLimit) {
-				MODE = 4;
-				mode4iter = 0;
-				K = K_balLow;
-			}
-		}
-		// COM error correction in balLow mode
-		else if(MODE == 4) {
-			error(0) += 0.03225;
-		}
-		// COM error correction in balHigh mode
-		else if(MODE == 5) {
-			error(0) += 0.03225;	
-		}
-		if(debug) cout << "error: " << error.transpose() << ", imu: " << krang->imu / M_PI * 180.0 << endl;
-
-		// Compute the current
-		double u_theta = K.topLeftCorner<2,1>().dot(error.topLeftCorner<2,1>());
-		double u_x = K(2)*error(2) + K(3)*error(3);
-		double u_spin =  -K.bottomLeftCorner<2,1>().dot(error.bottomLeftCorner<2,1>());
-		u_spin = max(-50.0, min(50.0, u_spin));
+			// Compute the current
+			double u_theta = K.topLeftCorner<2,1>().dot(error.topLeftCorner<2,1>());
+			double u_x = K(2)*error(2) + K(3)*error(3);
+			double u_spin =  -K.bottomLeftCorner<2,1>().dot(error.bottomLeftCorner<2,1>());
+			u_spin = max(-50.0, min(50.0, u_spin));
     	
 /*
-		// Override the u_spin to exert a force with the end-effector 
-		if(spinFT) {
-			
-			// computeSpin(u_spin);
-			u_spin = spinGoal;
-			if(debug) cout << "\tft y: " << krang->fts[LEFT]->lastExternal(1) << endl;
-		}
-//		else u_spin = 0.0;
+			// Override the u_spin to exert a force with the end-effector 
+			if(spinFT) {
+				
+				// computeSpin(u_spin);
+				u_spin = spinGoal;
+				if(debug) cout << "\tft y: " << krang->fts[LEFT]->lastExternal(1) << endl;
+			}
+//			else u_spin = 0.0;
 
-		if(debug) cout << "extra u: " << extraU << endl;
-		u_x = extraU;
-		last_u_x = u_x;
+			if(debug) cout << "extra u: " << extraU << endl;
+			u_x = extraU;
+			last_u_x = u_x;
 */
 /*
-		double fx = krang->fts[LEFT]->lastExternal(0);
-		double asdflimit = 15.0;
-		if(debug) cout << "feeling fx: " << fx << endl;
-		if(fabs(fx) > 5.0) {
-			double change = -fx * 0.33;
-			if(debug) cout << "\tapplying change: " << change << endl;
-			u_x += change;
-			if(u_x > asdflimit) u_x = asdflimit;
-			if(u_x < -asdflimit) u_x = -asdflimit;
-		}
+			double fx = krang->fts[LEFT]->lastExternal(0);
+			double asdflimit = 15.0;
+			if(debug) cout << "feeling fx: " << fx << endl;
+			if(fabs(fx) > 5.0) {
+				double change = -fx * 0.33;
+				if(debug) cout << "\tapplying change: " << change << endl;
+				u_x += change;
+				if(u_x > asdflimit) u_x = asdflimit;
+				if(u_x < -asdflimit) u_x = -asdflimit;
+			}
 */
 
-		// Compute the input for left and right wheels
-		if(joystickControl && ((MODE == 1) || (MODE == 6))) {u_x = 0.0; u_spin = 0.0;}
-		double input [2] = {u_theta + u_x + u_spin, u_theta + u_x - u_spin};
-		input[0] = max(-49.0, min(49.0, input[0]));
-		input[1] = max(-49.0, min(49.0, input[1]));
-		if(debug) printf("u_theta: %lf, u_x: %lf, u_spin: %lf\n", u_theta, u_x, u_spin);
-		lastUleft = input[0], lastUright = input[1];
-		
-		// Set the motor velocities
-		if(start) {
-			if(debug) cout << "Started...: (" << input[0] << ", " << input[1] << ")" << endl;
-			somatic_motor_cmd(&daemon_cx, krang->amc, SOMATIC__MOTOR_PARAM__MOTOR_CURRENT, input, 2, NULL);
-		}
-	
-		// =======================================================================
-		// Control the arms, waist torso and robotiq grippers based on the joystick input
-
-		if(joystickControl) {
-		
-			if(debug) cout << "Joystick for Arms and Waist..." << endl;
-		
-			// Control the arms if necessary
-			controlArms();
-
-			// Control the waist
-			controlWaist();
-
-		}
-
-		// Control the grippers 
-		//controlRobotiq();
-		//controlSchunkGrippers();
-
-		// Control the torso
-		double dq [] = {x[4] / 7.0};
-		somatic_motor_cmd(&daemon_cx, krang->torso, VELOCITY, dq, 1, NULL);
-
-	
-		// ==========================================================================
-		// Quit if button 9 on the joystick is pressed, stand/sit if button 10 is pressed
-
-		static bool b9Prev = 0; // To store the value of button 9 in last iteration
-
-		// Quit
-		if(b[8] == 1) break;
-
-		// Stand/Sit if button 10 is presed and conditions are right
-		else if(b9Prev == 0 && b[9] == 1) {
-
-			// If in ground mode and state error is not high stand up
-			if(MODE == 1) {
-				if(state(0) < 0.0 && error(0) > -10.0*M_PI/180.0)	{
-					printf("\n\n\nMode 2\n\n\n");
-					K = K_stand;
-					MODE = 2;	
-				}	else {
-					printf("\n\n\nCan't stand up, balancing error is too high!\n\n\n");
-				}
-			}
+			// Compute the input for left and right wheels
+			if(joystickControl && ((MODE == 1) || (MODE == 6))) {u_x = 0.0; u_spin = 0.0;}
+			double input [2] = {u_theta + u_x + u_spin, u_theta + u_x - u_spin};
+			input[0] = max(-49.0, min(49.0, input[0]));
+			input[1] = max(-49.0, min(49.0, input[1]));
+			if(debug) printf("u_theta: %lf, u_x: %lf, u_spin: %lf\n", u_theta, u_x, u_spin);
+			lastUleft = input[0], lastUright = input[1];
 			
-			// If in balLow mode and waist is not too high, sit down
-			else if(MODE == 2 || MODE == 4) {
-				if((krang->waist->pos[0] - krang->waist->pos[1])/2.0 > 150.0*M_PI/180.0) {
-					printf("\n\n\nMode 3\n\n\n");
-					K = K_sit;
-					MODE = 3;	
-				} else {
-					printf("\n\n\nCan't sit down, Waist is too high!\n\n\n");
+			// Set the motor velocities
+			if(start) {
+				if(debug) cout << "Started...: (" << input[0] << ", " << input[1] << ")" << endl;
+				somatic_motor_cmd(&daemon_cx, krang->amc, SOMATIC__MOTOR_PARAM__MOTOR_CURRENT, input, 2, NULL);
+			}
+	
+			// =======================================================================
+			// Control the arms, waist torso and robotiq grippers based on the joystick input
+
+			if(joystickControl) {
+			
+				if(debug) cout << "Joystick for Arms and Waist..." << endl;
+			
+				// Control the arms if necessary
+				controlArms();
+
+				// Control the waist
+				controlWaist();
+
+			}
+
+			// Control the grippers 
+			//controlRobotiq();
+			//controlSchunkGrippers();
+
+			// Control the torso
+			double dq [] = {x[4] / 7.0};
+			somatic_motor_cmd(&daemon_cx, krang->torso, VELOCITY, dq, 1, NULL);
+
+	
+			// ==========================================================================
+			// Quit if button 9 on the joystick is pressed, stand/sit if button 10 is pressed
+
+			static bool b9Prev = 0; // To store the value of button 9 in last iteration
+
+			// Quit
+			if(b[8] == 1) break;
+
+			// Stand/Sit if button 10 is presed and conditions are right
+			else if(b9Prev == 0 && b[9] == 1) {
+
+				// If in ground mode and state error is not high stand up
+				if(MODE == 1) {
+					if(state(0) < 0.0 && error(0) > -10.0*M_PI/180.0)	{
+						printf("\n\n\nMode 2\n\n\n");
+						K = K_stand;
+						MODE = 2;	
+					}	else {
+						printf("\n\n\nCan't stand up, balancing error is too high!\n\n\n");
+					}
+				}
+				
+				// If in balLow mode and waist is not too high, sit down
+				else if(MODE == 2 || MODE == 4) {
+					if((krang->waist->pos[0] - krang->waist->pos[1])/2.0 > 150.0*M_PI/180.0) {
+						printf("\n\n\nMode 3\n\n\n");
+						K = K_sit;
+						MODE = 3;	
+					} else {
+						printf("\n\n\nCan't sit down, Waist is too high!\n\n\n");
+					}
 				}
 			}
-		}
 	
-		// Store the value of button 10 in the last iteration
-		b9Prev = b[9];
+			// Store the value of button 10 in the last iteration
+			b9Prev = b[9];
 
-		// Print the mode
-		if(debug) printf("Mode : %d\tdt: %lf\n", MODE, dt);
+			// Print the mode
+			if(debug) printf("Mode : %d\tdt: %lf\n", MODE, dt);
+		}
+		else{
+			time = aa_tm_now();
+			double input [2];
+			double ddth, tau_0, ddx, ddpsi, tau_1, tau_L, tau_R;
+			double deltat = time - time_old;
+			counterc = counterc + deltat; 
+			u = mMPCControlRef.col(floor(counterc/mMPCdt));  // Using counter to get the correct reference
+			// Control input from High-level Control
+			ddth = u(0);
+			tau_0 = u(1);
+		  
+    	    State xdot; 
+	        Eigen::Vector3d ddq, dq; 
+	        c_forces dy_forces;
+	      
+	      
+	       // ddq
+	       xdot = mDDPDynamics->f(cur_state, u);
+	       ddx = xdot(3);
+	       ddpsi = xdot(4);
+	       ddq << ddx, ddpsi, ddth;
+	      
+	       // dq
+	       State cur_state;  // Initialize the new current state
+      	   cur_state << state(2),state(4),state(0),state(3),state(5),state(1),AugState;
+	       dq = cur_state.segment(3,3);
+	      
+	      // A, C, Q and Gamma_fric
+	      dy_forces = mDDPDynamics->dynamic_forces(cur_state, u);
+	      
+	      // tau_1
+	      // tau_1 = (dy_forces.A.block<1,3>(2,0)*ddq) + (dy_forces.C.block<1,3>(2,0)*dq) + (dy_forces.Q(2)) - (dy_forces.Gamma_fric(2));
+	      tau_1 = dy_forces.A.block<1,3>(2,0)*ddq; tau_1 += dy_forces.C.block<1,3>(2,0)*dq; tau_1 += dy_forces.Q(2); tau_1 -= dy_forces.Gamma_fric(2);
+
+	      // Wheel Torques
+	      tau_L = -0.5*(tau_1+tau_0);
+	      tau_R = -0.5*(tau_1-tau_0);
+	      if(abs(tau_L) > mTauLim(0)/2 | abs(tau_R) > mTauLim(0)/2){
+	        cout << "step: " << mSteps << ", tau_0: " << tau_0 << ", tau_1: " << tau_1 << ", tau_L: " << tau_L << ", tau_R: " << tau_R << endl;
+	      }
+	      tau_L = min(mTauLim(0)/2, max(-mTauLim(0)/2, tau_L));
+	      tau_R = min(mTauLim(0)/2, max(-mTauLim(0)/2, tau_R));
+	      input[0] = tau_L;
+	      input[1] = tau_R;
+		  lastUleft = tau_L, lastUright = tau_R;
+	
+			// Set the motor velocities
+	      if(start) {
+			if(debug) cout << "Started..." << endl;
+			somatic_motor_cmd(&daemon_cx, krang->amc, SOMATIC__MOTOR_PARAM__MOTOR_CURRENT, input, 2, NULL);
+			}
+			if(time - time_old > time + mMPCdt){
+				counterc++;
+				time_old = time;
+			}
+      	}
 	}
 	cout << "c_: " << c_ << endl;
 
 	// Send the stoppig event
 	somatic_d_event(&daemon_cx, SOMATIC__EVENT__PRIORITIES__NOTICE,
 					 SOMATIC__EVENT__CODES__PROC_STOPPING, NULL, NULL);
+
 }
 
 /* ******************************************************************************************** */
@@ -625,6 +687,13 @@ void init() {
 	// Create a thread to wait for user input to begin balancing
 	pthread_t kbhitThread;
 	pthread_create(&kbhitThread, NULL, &kbhit, NULL);
+	
+	// bool initDDP = false;
+	//Create a thread to start and Compute MPC-DDP
+	pthread_t MPCDDPThread;
+	pthread_create(&MPCDDPThread,NULL, &MPCDDPCompute, NULL);
+
+
 }
 
 /* ******************************************************************************************** */
