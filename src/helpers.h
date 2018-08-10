@@ -38,8 +38,24 @@
 
 #include <kore.hpp>
 
+#include <ddp/costs.hpp>
+#include <ddp/ddp.hpp>
+#include <ddp/mpc.hpp>
+#include <ddp/util.hpp>
+
 using namespace Eigen;
 using namespace dynamics;
+
+using Scalar = double;  
+using Dynamics = Krang3D<Scalar>;
+using DDP_Opt = optimizer::DDP<Dynamics>;
+using Cost = Krang3DCost<Scalar>;
+using TerminalCost = Krang3DTerminalCost<Scalar>;
+using StateTrajectory = typename Dynamics::StateTrajectory ;
+using ControlTrajectory= typename Dynamics::ControlTrajectory ;
+using State = typename Dynamics::State;
+using Control = typename Dynamics::Control;
+
 
 bool myDebug;
 extern bool debugGlobal;
@@ -57,6 +73,7 @@ somatic_d_t daemon_cx;				///< The context of the current daemon
 Krang::Hardware* krang;				///< Interface for the motor and sensors on the hardware
 simulation::World* world;			///< the world representation in dart
 SkeletonDynamics* robot;			///< the robot representation in dart
+simulation::World* World3dof;	    ///< the 3DOF world representation in dart
 
 Somatic__WaistCmd *waistDaemonCmd = somatic_waist_cmd_alloc(); ///< Cmds for waist daemon
 ach_channel_t js_chan;				///< Read joystick data on this channel
@@ -79,6 +96,33 @@ char b [10];						///< Stores the joystick button inputs
 double x [6];						///< Stores the joystick axes inputs
 
 double uglobal [2];                            //Input for the wheels global
+double counterc = 0;
+/* ******************************************************************************************* */
+//Parameters for DDP
+ControlTrajectory mDDPControlTraj;
+StateTrajectory mDDPStateTraj;
+Dynamics *mDDPDynamics;
+Control mMPCControlRef;  // Store all the reference trajectory MPC compute
+Control u;  // Actual Control that is being given
+State mMPCStateRef;
+int mSteps, mBeginStep;
+int mMPCSteps;
+double mMPCdt;
+CSV_writer<Scalar> mMPCWriter;
+State mGoalState;
+double mFinalTime;
+int mDDPMaxIter;
+Eigen::Matrix<double, 8, 1> mDDPStatePenalties;
+Eigen::Matrix<double, 8, 1> mDDPTerminalStatePenalties;
+Eigen::Matrix<double, 2, 1> mDDPControlPenalties;
+int mMPCMaxIter;
+int mMPCHorizon;
+Eigen::Matrix<double, 8, 1> mMPCStatePenalties;
+Eigen::Matrix<double, 8, 1> mMPCTerminalStatePenalties;
+Eigen::Matrix<double, 2, 1> mMPCControlPenalties;
+double time;
+double time_old = 0;
+
 /* ******************************************************************************************** */
 // All the freaking gains
 
@@ -160,6 +204,9 @@ void readGains();
 
 // Update the actual position x0,y0 for MPC-DDP
 void updateAugStateReference(Vector6d& state, double dt, Vector2d& AugState);
+
+// Computing MPC-DDP function
+void *MPCDDPCompute(void *);
 
 /* ******************************************************************************************** */
 // Useful macros

@@ -438,7 +438,7 @@ void run () {
 
 		// =======================================================================
 		// Apply control: compute error, threshold and send current
-                if(MODE != 7){
+        if(MODE != 7){
 			// Compute the error term between reference and current, and weight with gains (spin separate)
 			if(debug) cout << "K: " << K.transpose() << endl;
 			error = state - refState;
@@ -600,18 +600,61 @@ void run () {
 			if(debug) printf("Mode : %d\tdt: %lf\n", MODE, dt);
 		}
 		else{
+			time = aa_tm_now();
 			double input [2];
-			input[0] = max(-49.0, min(49.0, uglobal[0]));
-			input[1] = max(-49.0, min(49.0, uglobal[1]));
-			lastUleft = input[0], lastUright = input[1];
-		
-			// Set the motor velocities
-			if(start) {
-				if(debug) cout << "Started..." << endl;
-				somatic_motor_cmd(&daemon_cx, krang->amc, SOMATIC__MOTOR_PARAM__MOTOR_CURRENT, input, 2, NULL);
-			}
+			double ddth, tau_0, ddx, ddpsi, tau_1, tau_L, tau_R;
+			double deltat = time - time_old;
+			counterc = counterc + deltat; 
+			u = mMPCControlRef.col(floor(counterc/mMPCdt));  // Using counter to get the correct reference
+			// Control input from High-level Control
+			ddth = u(0);
+			tau_0 = u(1);
+		  
+    	    State xdot; 
+	        Eigen::Vector3d ddq, dq; 
+	        c_forces dy_forces;
+	      
+	      
+	       // ddq
+	       xdot = mDDPDynamics->f(cur_state, u);
+	       ddx = xdot(3);
+	       ddpsi = xdot(4);
+	       ddq << ddx, ddpsi, ddth;
+	      
+	       // dq
+	       State cur_state;  // Initialize the new current state
+      	   cur_state << state(2),state(4),state(0),state(3),state(5),state(1),AugState;
+	       dq = cur_state.segment(3,3);
+	      
+	      // A, C, Q and Gamma_fric
+	      dy_forces = mDDPDynamics->dynamic_forces(cur_state, u);
+	      
+	      // tau_1
+	      // tau_1 = (dy_forces.A.block<1,3>(2,0)*ddq) + (dy_forces.C.block<1,3>(2,0)*dq) + (dy_forces.Q(2)) - (dy_forces.Gamma_fric(2));
+	      tau_1 = dy_forces.A.block<1,3>(2,0)*ddq; tau_1 += dy_forces.C.block<1,3>(2,0)*dq; tau_1 += dy_forces.Q(2); tau_1 -= dy_forces.Gamma_fric(2);
 
-      		}
+	      // Wheel Torques
+	      tau_L = -0.5*(tau_1+tau_0);
+	      tau_R = -0.5*(tau_1-tau_0);
+	      if(abs(tau_L) > mTauLim(0)/2 | abs(tau_R) > mTauLim(0)/2){
+	        cout << "step: " << mSteps << ", tau_0: " << tau_0 << ", tau_1: " << tau_1 << ", tau_L: " << tau_L << ", tau_R: " << tau_R << endl;
+	      }
+	      tau_L = min(mTauLim(0)/2, max(-mTauLim(0)/2, tau_L));
+	      tau_R = min(mTauLim(0)/2, max(-mTauLim(0)/2, tau_R));
+	      input[0] = tau_L;
+	      input[1] = tau_R;
+		  lastUleft = tau_L, lastUright = tau_R;
+	
+			// Set the motor velocities
+	      if(start) {
+			if(debug) cout << "Started..." << endl;
+			somatic_motor_cmd(&daemon_cx, krang->amc, SOMATIC__MOTOR_PARAM__MOTOR_CURRENT, input, 2, NULL);
+			}
+			if(time - time_old > time + mMPCdt){
+				counterc++;
+				time_old = time;
+			}
+      	}
 	}
 	cout << "c_: " << c_ << endl;
 
@@ -645,7 +688,7 @@ void init() {
 	pthread_t kbhitThread;
 	pthread_create(&kbhitThread, NULL, &kbhit, NULL);
 	
-	bool initDDP = false;
+	// bool initDDP = false;
 	//Create a thread to start and Compute MPC-DDP
 	pthread_t MPCDDPThread;
 	pthread_create(&MPCDDPThread,NULL, &MPCDDPCompute, NULL);

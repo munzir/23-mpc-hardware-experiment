@@ -5,18 +5,18 @@
  * @brief This file contains helper functions such as imu data retrieval and -+++++++++ing...
  */
 
-#include "helpers-MPCDDP.h"
+#include "helpers.h"
 #include "krangddp.h"
-
+#include <config4cpp/Configuration.h>
 
 
 
 
 #include <boost/circular_buffer.hpp>
-#include <ddp/costs.hpp>
-#include <ddp/ddp.hpp>
-#include <ddp/mpc.hpp>
-#include <ddp/util.hpp>
+// #include <ddp/costs.hpp>
+// #include <ddp/ddp.hpp>
+// #include <ddp/mpc.hpp>
+// #include <ddp/util.hpp>
 
 
 
@@ -28,15 +28,6 @@ using namespace Eigen;
 using namespace std;
 using namespace Krang;
 
-using Scalar = double;  
-using Dynamics = Krang3D<Scalar>;
-using DDP_Opt = optimizer::DDP<Dynamics>;
-using Cost = Krang3DCost<Scalar>;
-using TerminalCost = Krang3DTerminalCost<Scalar>;
-using StateTrajectory = typename Dynamics::StateTrajectory ;
-using ControlTrajectory= typename Dynamics::ControlTrajectory ;
-using State = typename Dynamics::State;
-using Control = typename Dynamics::Control;
 
 /* ****************************************** */
 
@@ -45,57 +36,36 @@ using Control = typename Dynamics::Control;
 
 SkeletonPtr create3DOF_URDF()
 {
-  // Load the Skeleton from a file
   dart::utils::DartLoader loader;
   SkeletonPtr threeDOF = 
-      //loader.parseSkeleton("/home/krang/dart/09-URDF/3DOF-WIP/3dof.urdf");
-      loader.parseSkeleton("/home/krang/dart/09-URDF/3DOF-WIP/3dof.urdf");
+      loader.parseSkeleton("/home/panda/myfolder/wholebodycontrol/09-URDF/3DOF-WIP/3dof.urdf");
   threeDOF->setName("m3DOF");
-
-  // Set parameters of Body that reflect the ones we will actually have 
-  Eigen::Matrix<double, 18, 1> qInit;
-  qInit << krang->imu, robot->getPositions().tail(17);
-  getSimple(threeDOF, qInit);   
   
   threeDOF->getJoint(0)->setDampingCoefficient(0, 0.5);
   threeDOF->getJoint(1)->setDampingCoefficient(0, 0.5);
 
-  // Get it into a useful configuration
-  double psiInit = 0, qBody1Init = 0;
-  Eigen::Transform<double, 3, Eigen::Affine> baseTf = Eigen::Transform<double, 3, Eigen::Affine>::Identity();
-  // RotX(pi/2)*RotY(-pi/2+psi)*RotX(-qBody1)
-  baseTf.prerotate(Eigen::AngleAxisd(-qBody1Init,Eigen::Vector3d::UnitX())).prerotate(Eigen::AngleAxisd(-M_PI/2+psiInit,Eigen::Vector3d::UnitY())).prerotate(Eigen::AngleAxisd(M_PI/2, Eigen::Vector3d::UnitX()));
-  Eigen::AngleAxisd aa(baseTf.matrix().block<3,3>(0,0));
-  Eigen::Matrix<double, 8, 1> q;
-//  q << 1.2092, -1.2092, -1.2092, 0, 0, 0.28, 0, 0;
-  q << aa.angle()*aa.axis(), 0, 0, 0.28, 0, 0;
-  threeDOF->setPositions(q);
-
   return threeDOF;
 }
 
-
-void getSimple(SkeletonPtr threeDOF, Eigen::Matrix<double, 18, 1> q) 
-{
+void getSimple(SkeletonPtr& threeDOF, SkeletonPtr& krang) {
   // Load the full body with fixed wheel and set the pose q
-  dart::utils::DartLoader loader;
-  SkeletonPtr krangFixedWheel =
-      loader.parseSkeleton("/home/krang/dart/09-URDF/KrangFixedWheels/krang_fixed_wheel.urdf");
-  krangFixedWheel->setName("m18DOF");
-  krangFixedWheel->setPositions(q);
+  // dart::utils::DartLoader loader;
+  // SkeletonPtr krangFixedWheel =
+  //     loader.parseSkeleton("/home/krang/dart/09-URDF/KrangFixedWheels/krang_fixed_wheel.urdf");
   
   // Body Mass
-  double mFull = krangFixedWheel->getMass(); 
-  double mLWheel = krangFixedWheel->getBodyNode("LWheel")->getMass();
-  double mBody = mFull - mLWheel;
+  double mFull = krang->getMass(); 
+  double mLWheel = krang->getBodyNode("LWheel")->getMass();
+  double mRWheel = krang->getBodyNode("RWheel")->getMass();
+  double mBody = mFull - mLWheel - mRWheel;
 
-  // Body COM
+
   Eigen::Vector3d bodyCOM;
-  dart::dynamics::Frame* baseFrame = krangFixedWheel->getBodyNode("Base");
-  bodyCOM = (mFull*krangFixedWheel->getCOM(baseFrame) - mLWheel*krangFixedWheel->getBodyNode("LWheel")->getCOM(baseFrame))/(mFull - mLWheel);
+  dart::dynamics::Frame* baseFrame = krang->getBodyNode("Base");
+  bodyCOM = (mFull*krang->getCOM(baseFrame) - mLWheel*krang->getBodyNode("LWheel")->getCOM(baseFrame) - mLWheel*krang->getBodyNode("RWheel")->getCOM(baseFrame))/(mFull - mLWheel - mRWheel);
 
-  // Body inertia
-  int nBodies = krangFixedWheel->getNumBodyNodes();
+  // Body inertia (axis)
+  double m;
   Eigen::Matrix3d iMat;
   Eigen::Matrix3d iBody = Eigen::Matrix3d::Zero();
   double ixx, iyy, izz, ixy, ixz, iyz;  
@@ -103,12 +73,13 @@ void getSimple(SkeletonPtr threeDOF, Eigen::Matrix<double, 18, 1> q)
   Eigen::Vector3d t;
   Eigen::Matrix3d tMat;
   dart::dynamics::BodyNodePtr b;
-  double m;
-  for(int i=1; i<nBodies; i++){ // Skipping LWheel
-    b = krangFixedWheel->getBodyNode(i);
+  int nBodies = krang->getNumBodyNodes();
+  for(int i=0; i<nBodies; i++){
+    if(i==1 || i==2) continue; // Skip wheels
+    b = krang->getBodyNode(i);
     b->getMomentOfInertia(ixx, iyy, izz, ixy, ixz, iyz);
-    rot = b->getTransform(baseFrame).rotation(); 
-    t = bodyCOM - b->getCOM(baseFrame) ; // Position vector from local COM to body COM expressed in base frame
+    rot = b->getTransform(baseFrame).rotation();
+    t = krang->getCOM(baseFrame) - b->getCOM(baseFrame) ; // Position vector from local COM to body COM expressed in base frame
     m = b->getMass();
     iMat << ixx, ixy, ixz, // Inertia tensor of the body around its CoM expressed in body frame
             ixy, iyy, iyz,
@@ -120,6 +91,7 @@ void getSimple(SkeletonPtr threeDOF, Eigen::Matrix<double, 18, 1> q)
     iMat = iMat + m*tMat; // Parallel Axis Theorem
     iBody += iMat;
   }
+
 
   // Aligning threeDOF base frame to have the y-axis pass through the CoM
   double th = atan2(bodyCOM(2), bodyCOM(1));
@@ -135,167 +107,287 @@ void getSimple(SkeletonPtr threeDOF, Eigen::Matrix<double, 18, 1> q)
   threeDOF->getBodyNode("Base")->setMass(mBody);
 
   // Print them out
-  cout << "mass: " << mBody << endl;
-  cout << "COM: " << bodyCOM(0) << ", " << bodyCOM(1) << ", " << bodyCOM(2) << endl;
-  cout << "ixx: " << iBody(0,0) << ", iyy: " << iBody(1,1) << ", izz: " << iBody(2,2) << endl;
-  cout << "ixy: " << iBody(0,1) << ", ixz: " << iBody(0,2) << ", iyz: " << iBody(1,2) << endl;
+  // cout << "mass: " << mBody << endl;
+  // cout << "COM: " << bodyCOM(0) << ", " << bodyCOM(1) << ", " << bodyCOM(2) << endl;
+  // cout << "ixx: " << iBody(0,0) << ", iyy: " << iBody(1,1) << ", izz: " << iBody(2,2) << endl;
+  // cout << "ixy: " << iBody(0,1) << ", ixz: " << iBody(0,2) << ", iyz: " << iBody(1,2) << endl;
+
+  // Update 3DOF state
+  // get positions
+  Eigen::Matrix3d baseRot = krang->getBodyNode("Base")->getTransform().rotation();
+  baseRot = baseRot*rot.transpose();
+  Eigen::AngleAxisd aa(baseRot);
+  Eigen::Matrix<double, 8, 1> q, dq;
+  q << aa.angle()*aa.axis(), krang->getPositions().segment(3, 5);
+  threeDOF->setPositions(q);
+
+  // TODO: When joints are unlocked qBody1 of the 3DOF (= dth = COM angular speed) is not the same as qBody1 of the full robot
+  dq << rot*krang->getVelocities().head(3), rot*krang->getVelocities().segment(3, 3), krang->getVelocities().segment(6, 2);
+  threeDOF->setVelocities(dq);
+}
+
+
+void ComputeDDPTrajectory(Vector6d& state, Vector2d& AugState) {
+  
+  param p; 
+  double ixx, iyy, izz, ixy, ixz, iyz; 
+  Eigen::Vector3d com;
+  Eigen::Matrix3d iMat;      
+  Eigen::Matrix3d tMat;
+  
+  dart::dynamics::Frame* baseFrame = m3DOF->getBodyNode("Base");
+  p.R = mR; p.L = mL; p.g=9.800000e+00;
+  
+  p.mw = m3DOF->getBodyNode("LWheel")->getMass(); 
+  
+  m3DOF->getBodyNode("LWheel")->getMomentOfInertia(ixx, iyy, izz, ixy, ixz, iyz);
+  
+  p.YYw = ixx; p.ZZw = izz; p.XXw = iyy; // Wheel frame of reference in ddp dynamic model is different from the one in DART
+  p.m_1 = m3DOF->getBodyNode("Base")->getMass(); 
+  com = m3DOF->getBodyNode("Base")->getCOM(baseFrame);
+  p.MX_1 = p.m_1*com(0); p.MY_1 = p.m_1*com(1); p.MZ_1 = p.m_1*com(2);
+  
+  m3DOF->getBodyNode("Base")->getMomentOfInertia(ixx, iyy, izz, ixy, ixz, iyz);
+  Eigen::Vector3d s = -com; // Position vector from local COM to body COM expressed in base frame
+  iMat << ixx, ixy, ixz, // Inertia tensor of the body around its CoM expressed in body frame
+          ixy, iyy, iyz,
+          ixz, iyz, izz;
+  tMat << (s(1)*s(1)+s(2)*s(2)), (-s(0)*s(1)),          (-s(0)*s(2)),
+          (-s(0)*s(1)),          (s(0)*s(0)+s(2)*s(2)), (-s(1)*s(2)),
+          (-s(0)*s(2)),          (-s(1)*s(2)),          (s(0)*s(0)+s(1)*s(1));
+  iMat = iMat + p.m_1*tMat; // Parallel Axis Theorem
+  p.XX_1 = iMat(0,0); p.YY_1 = iMat(1,1); p.ZZ_1 = iMat(2,2);
+  p.XY_1 = iMat(0,1); p.YZ_1 = iMat(1,2); p.XZ_1 = iMat(0,2);
+  p.fric_1 = m3DOF->getJoint(0)->getDampingCoefficient(0); // Assuming both joints have same friction coeff (Please make sure that is true)
+  
+  CSV_writer<Scalar> writer;
+  util::DefaultLogger logger;
+  bool verbose = true;
+  Scalar tf = mFinalTime;
+  auto time_steps = util::time_steps(tf, mMPCdt);
+  int max_iterations = mDDPMaxIter;
+  
+
+  mDDPDynamics = new Dynamics(p);
+  
+  // Initial state 
+  // State x0 = getCurrentState();
+  // x0 << 0, 0, x0(2), 0, 0, 0, 0, 0; 
+  //Initialize the state with the current state of Krang
+  State x0; x0 << state(2),state(4),state(0),state(3),state(5),state(1),AugState;
+  cout << "initState: " << x0.transpose() << endl;
+  // Dynamics::State xf; xf << 2, 0, 0, 0, 0, 0, 0.01, 5;
+  // Dynamics::State xf; xf << 5, 0, 0, 0, 0, 0, 5, 0;
+  Dynamics::ControlTrajectory u = Dynamics::ControlTrajectory::Zero(2, time_steps);
+
+  // Costs
+  Cost::StateHessian Q;
+  Q.setZero();
+  Q.diagonal() << mDDPStatePenalties;
+
+  Cost::ControlHessian R;
+  R.setZero();
+  R.diagonal() << mDDPControlPenalties;
+
+  TerminalCost::Hessian Qf;
+  Qf.setZero();
+  Qf.diagonal() << mDDPTerminalStatePenalties;
+
+  Cost cp_cost(mGoalState, Q, R);
+  TerminalCost cp_terminal_cost(mGoalState, Qf);
+
+  // initialize DDP for trajectory planning
+  DDP_Opt trej_ddp (mMPCdt, time_steps, max_iterations, &logger, verbose);
+
+  // Get initial trajectory from DDP
+  OptimizerResult<Dynamics> DDP_traj = trej_ddp.run(x0, u, *mDDPDynamics, cp_cost, cp_terminal_cost);
+
+  
+  mDDPStateTraj = DDP_traj.state_trajectory;
+  mDDPControlTraj = DDP_traj.control_trajectory;
+
+  writer.save_trajectory(mDDPStateTraj, mDDPControlTraj, "initial_traj.csv");
 }
 
 void *MPCDDPCompute(void *) {
-	ControlTrajectory ddp_ctl_traj;
-	StateTrajectory ddp_state_traj;
-	Dynamics *ddp_dyn;
-	Control u;
+  Configuration *  cfg = Configuration::create();
+  const char *     scope = "";
+  const char *     configFile = "/home/panda/myfolder/wholebodycontrol/13b-3DUnification-UnlockedJoints/examples/3dofddp/controlParams.cfg";
+  const char * str;
+  std::istringstream stream;
 
-	int steps;
-    int mpc_steps;
-    double mpc_dt = 0.01;
-	while(!initDDP);
-	SkeletonPtr threeDOF = create3DOF_URDF();
-	Eigen::VectorXd qInit;
-	qInit << krang->imu, robot->getPositions().tail(17);
+  try {
+    cfg->parse(configFile);
 
-	param p; 
-    double ixx, iyy, izz, ixy, ixz, iyz; 
-    Eigen::Vector3d com;
-    Eigen::Matrix3d iMat;      
-    Eigen::Matrix3d tMat;
-    dart::dynamics::Frame* baseFrame = m3DOF->getBodyNode("Base");
-    p.R = 2.500000e-01; p.L = 6.000000e-01; p.g=9.800000e+00;
-    p.mw = m3DOF->getBodyNode("LWheel")->getMass(); 
-    m3DOF->getBodyNode("LWheel")->getMomentOfInertia(ixx, iyy, izz, ixy, ixz, iyz);
-    p.YYw = ixx; p.ZZw = izz; p.XXw = iyy; // Wheel frame of reference in ddp dynamic model is different from the one in DART
-    p.m_1 = m3DOF->getBodyNode("Base")->getMass(); 
-    com = m3DOF->getBodyNode("Base")->getCOM(baseFrame);
-    p.MX_1 = p.m_1*com(0); p.MY_1 = p.m_1*com(1); p.MZ_1 = p.m_1*com(2);
-    m3DOF->getBodyNode("Base")->getMomentOfInertia(ixx, iyy, izz, ixy, ixz, iyz);
-    Eigen::Vector3d s = -com; // Position vector from local COM to body COM expressed in base frame
-    iMat << ixx, ixy, ixz, // Inertia tensor of the body around its CoM expressed in body frame
-            ixy, iyy, iyz,
-            ixz, iyz, izz;
-    tMat << (s(1)*s(1)+s(2)*s(2)), (-s(0)*s(1)),          (-s(0)*s(2)),
-            (-s(0)*s(1)),          (s(0)*s(0)+s(2)*s(2)), (-s(1)*s(2)),
-            (-s(0)*s(2)),          (-s(1)*s(2)),          (s(0)*s(0)+s(1)*s(1));
-    iMat = iMat + p.m_1*tMat; // Parallel Axis Theorem
-    p.XX_1 = iMat(0,0); p.YY_1 = iMat(1,1); p.ZZ_1 = iMat(2,2);
-    p.XY_1 = iMat(0,1); p.YZ_1 = iMat(1,2); p.XZ_1 = iMat(0,2);
-    p.fric_1 = m3DOF->getJoint(0)->getDampingCoefficient(0); // Assuming both joints have same friction coeff (Please make sure that is true)
-      
-    CSV_writer<Scalar> writer;
-    util::DefaultLogger logger;
-    bool verbose = true;
-    Scalar tf = 20;
-    auto time_steps = util::time_steps(tf, mpc_dt);
-    int max_iterations = 15;             
-      
+    str = cfg->lookupString(scope, "goalState"); 
+    stream.str(str); for(int i=0; i<8; i++) stream >> mGoalState(i); stream.clear();
 
-    ddp_dyn = new Dynamics(p);
-       // Dynamics ddp_dyn(p);
+    mFinalTime = cfg->lookupFloat(scope, "finalTime");
+    
+    mDDPMaxIter = cfg->lookupInt(scope, "DDPMaxIter");
+    
+    str = cfg->lookupString(scope, "DDPStatePenalties"); 
+    stream.str(str); for(int i=0; i<8; i++) stream >> mDDPStatePenalties(i); stream.clear();
+    
+    str = cfg->lookupString(scope, "DDPTerminalStatePenalties"); 
+    stream.str(str); for(int i=0; i<8; i++) stream >> mDDPTerminalStatePenalties(i); stream.clear();
+    
+    str = cfg->lookupString(scope, "DDPControlPenalties"); 
+    stream.str(str); for(int i=0; i<2; i++) stream >> mDDPControlPenalties(i); stream.clear();
+    
+    mBeginStep = cfg->lookupInt(scope, "beginStep");
 
-      // Initial state th, dth, x, dx, desired state, initial control sequence
+    mMPCMaxIter = cfg->lookupInt(scope, "MPCMaxIter");
+    
+    mMPCHorizon = cfg->lookupInt(scope, "MPCHorizon");
+    
+    str = cfg->lookupString(scope, "MPCStatePenalties"); 
+    stream.str(str); for(int i=0; i<8; i++) stream >> mMPCStatePenalties(i); stream.clear();
+    
+    str = cfg->lookupString(scope, "MPCTerminalStatePenalties"); 
+    stream.str(str); for(int i=0; i<8; i++) stream >> mMPCTerminalStatePenalties(i); stream.clear();
+    
+    str = cfg->lookupString(scope, "MPCControlPenalties"); 
+    stream.str(str); for(int i=0; i<2; i++) stream >> mMPCControlPenalties(i); stream.clear();
 
-    //x, psi, theta, dx, dpsi, dtheta, x0, y0
-    State x0; x0 << state(2),state(4),state(0),state(3),state(5),state(1),AugState;       
-    Dynamics::State xf; xf << 2, 0, 0, 0, 0, 0, 0.01, 5;
-    Dynamics::ControlTrajectory u = Dynamics::ControlTrajectory::Zero(2, time_steps);
+    str = cfg->lookupString(scope, "tauLim"); 
+    stream.str(str); for(int i=0; i<18; i++) stream >> mTauLim(i); stream.clear();
+    
+  } catch(const ConfigurationException & ex) {
+      cerr << ex.c_str() << endl;
+      cfg->destroy();
+  }
+  int mSteps = 0;
+  int mMPCSteps = -1; 
+  double mMPCdt = 0.01;
+    // mdqFilt = new filter(8, 50);
+    // mR = 0.25;
+    // mL = 0.68;//*6;
+  char mpctrajfile[] = "mpc_traj.csv";
+  CSV_writer<Scalar> mMPCWriter;
+  mMPCWriter.open_file(mpctrajfile);
 
-      // Costs
-    Cost::StateHessian Q;
-    Q.setZero();
-    Q.diagonal() << 0,0.1,0.1,0.1,0.1,0.1,0.1,0.1;
-
-    Cost::ControlHessian R;
-    R.setZero();
-    R.diagonal() << 0.01, 0.01;
-
-    TerminalCost::Hessian Qf;
-    Qf.setZero();
-    Qf.diagonal() << 0,1e4,1e4,1e4,1e4,1e4,1e4,1e4;
-
-    Cost cp_cost(xf, Q, R);
-    TerminalCost cp_terminal_cost(xf, Qf);
-      // initialize DDP for trajectory planning
-    DDP_Opt trej_ddp (mpc_dt, time_steps, max_iterations, &logger, verbose);
-
-
-      // Get initial trajectory from DDP
-    OptimizerResult<Dynamics> DDP_traj = trej_ddp.run(x0, u, *ddp_dyn, cp_cost, cp_terminal_cost);
-
-    ddp_state_traj = DDP_traj.state_trajectory;
-    ddp_ctl_traj = DDP_traj.control_trajectory;
- 	
-    MODE = 7;
-    if(!norm(ddp_state_traj.block<2,1>(6,ddp_state_traj.cols()) - xf.tail(2)) < 0.1){
+  while(!initDDP); //Stay here till initDDP is false
+// Initialize the simplified robot
+  SkeletonPtr threeDOF = create3DOF_URDF();
+  // simulation::World* World3dof;
+  World3dof = std::make_shared<World>();
+  World3dof->addSkeleton(m3DOF);
+  getSimple(m3DOF, robot); 
+	while(!initDDP);  // Stay here till initDDP is false
+  computeDDPTrajectory(state,AugState);
+	
+  if(!norm(mDDPStateTraj.block<2,1>(6,mDDPStateTraj.cols()) - mGoalState.tail(2)) < 0.1){
     	initDDP = false;
     	MODE = 4;
+  }
+  else
+  {
+    MODE = 7;  // Change MODE to MPC Mode
+    // writer.save_trajectory(ddp_state_traj, ddp_ctl_traj, "initial_traj.csv");
+    double t = aa_tm_now();
+    Scalar tf = mFinalTime;
+    for(double i=t;i<t+tf;i+mpc_dt){
+      getSimple(m3DOF, mkrang);
+      State cur_state;  // Initialize the new current state
+      cur_state << state(2),state(4),state(0),state(3),state(5),state(1),AugState;
+  
+      mMPCSteps = cur_mpc_steps;
+      int max_iterations = mMPCMaxIter; 
+      bool verbose = true; 
+      util::DefaultLogger logger;
+      int mpc_horizon = mMPCHorizon; 
+      
+      Dynamics::State target_state;
+      target_state = mDDPStateTraj.col(mMPCSteps + mpc_horizon);
+      Dynamics::ControlTrajectory hor_control = Dynamics::ControlTrajectory::Zero(2, mpc_horizon);
+      Dynamics::StateTrajectory hor_traj_states = mDDPStateTraj.block(0, mMPCSteps, 8, mpc_horizon);
+      
+      DDP_Opt ddp_horizon(mMPCdt, mpc_horizon, max_iterations, &logger, verbose);
+      
+      Cost::StateHessian Q_mpc, Qf_mpc;
+      Cost::ControlHessian ctl_R;
+      
+      ctl_R.setZero();
+      ctl_R.diagonal() << mMPCControlPenalties;
+      Q_mpc.setZero();
+      Q_mpc.diagonal() << mMPCStatePenalties;
+      Qf_mpc.setZero();
+      Qf_mpc.diagonal() << mMPCTerminalStatePenalties;
+      Cost running_cost_horizon(target_state, Q_mpc, ctl_R);
+      TerminalCost terminal_cost_horizon(target_state, Qf_mpc);
+      
+      OptimizerResult<Dynamics> results_horizon;
+      results_horizon.control_trajectory = hor_control;
+      
+      results_horizon = ddp_horizon.run_horizon(cur_state, hor_control, hor_traj_states, *mDDPDynamics, running_cost_horizon, terminal_cost_horizon);
+      mMPCControlRef = results_horizon.control_trajectory.col(0); 
+      mMPCStateRef = results_horizon.state_trajectory.col(1);
+
+
+      mMPCWriter.save_step(cur_state, mMPCControlRef);
+      counterc = 0;
     }
-
-
-    writer.save_trajectory(ddp_state_traj, ddp_ctl_traj, "initial_traj.csv");
-    else
-    {
-    	t = aa_tm_now();
-    	for(i=t;t<t+tf;t+mpc_dt){
-			mpc_steps = cur_mpc_steps; ///  Define mpcsteps  
-        	int max_iterations = 15; 
-        	bool verbose = true; 
-        	util::DefaultLogger logger;
-        	int mpc_horizon = 10; 
-        
-        	Dynamics::State target_state;
-        	target_state = ddp_state_traj.col(mpc_steps + mpc_horizon);
-        	Dynamics::ControlTrajectory hor_control = Dynamics::ControlTrajectory::Zero(2, mpc_horizon);
-        	Dynamics::StateTrajectory hor_traj_states = ddp_state_traj.block(0, mpc_steps, 8, mpc_horizon);
-        
-        	DDP_Opt ddp_horizon (mpc_dt, mpc_horizon, max_iterations, &logger, verbose);
-        
-        	Cost::StateHessian Q_mpc, Qf_mpc;
-        	Cost::ControlHessian ctl_R;
-        
-        	ctl_R.setZero();
-        	ctl_R.diagonal() << 0.01, 0.01;
-        	Q_mpc.setZero();
-        	Q_mpc.diagonal() << 0, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1;
-        	Qf_mpc.setZero();
-        	Qf_mpc.diagonal() << 0, 1e4, 1e4, 1e4, 1e4, 1e4, 1e4, 1e4;
-        	Cost running_cost_horizon(target_state, Q_mpc, ctl_R);
-        	TerminalCost terminal_cost_horizon(target_state, Qf_mpc);
-        
-        	OptimizerResult<Dynamics> results_horizon;
-        	results_horizon.control_trajectory = hor_control;
-        
-        	results_horizon = ddp_horizon.run_horizon(cur_state, hor_control, hor_traj_states, *ddp_dyn, running_cost_horizon, terminal_cost_horizon);
-        	u = results_horizon.control_trajectory.col(0);
-        	uglobal = {u(0), u(1)};
-
-        	mpc_writer.save_step(cur_state, u);
-
-
-
-			double ddth = u(0);
-        	double tau_0 = u(1);
-        	State xdot = ddp_dyn->f(cur_state, u);
-        	double ddx = xdot(3);
-        	double ddpsi = xdot(4);
-        	Eigen::Vector3d ddq, dq;
-        	ddq << ddx, ddpsi, ddth;
-        	dq = cur_state.segment(3,3);
-        	c_forces dy_forces = ddp_dyn->dynamic_forces(cur_state, u);
-        	//double tau_1 = (dy_forces.A.block<1,3>(2,0)*ddq) + (dy_forces.C.block<1,3>(2,0)*dq) + (dy_forces.Q(2)) - (dy_forces.Gamma_fric(2));
-        	double tau_1 = dy_forces.A.block<1,3>(2,0)*ddq;
-        	tau_1 += dy_forces.C.block<1,3>(2,0)*dq;
-        	tau_1 += dy_forces.Q(2);
-        	tau_1 -= dy_forces.Gamma_fric(2);
-        	tau_L = -0.5*(tau_1+tau_0);
-        	tau_R = -0.5*(tau_1-tau_0);
-
-        	uglobal = {tau_L,tau_R};
-        }
-
-    }
-    MODE = 4;
-
-
-
-
+  }
+  MODE = 4;
 }
+   //  for(i=t;t<t+tf;t+mpc_dt){
+			// mpc_steps = cur_mpc_steps; ///  Define mpcsteps  
+   //    int max_iterations = 15; 
+   //    bool verbose = true; 
+   //    util::DefaultLogger logger;
+   //    int mpc_horizon = 10; 
+        
+   //    Dynamics::State target_state;
+   //    target_state = ddp_state_traj.col(mpc_steps + mpc_horizon);
+   //    Dynamics::ControlTrajectory hor_control = Dynamics::ControlTrajectory::Zero(2, mpc_horizon);
+   //    Dynamics::StateTrajectory hor_traj_states = ddp_state_traj.block(0, mpc_steps, 8, mpc_horizon);
+      
+   //    DDP_Opt ddp_horizon (mpc_dt, mpc_horizon, max_iterations, &logger, verbose);
+        
+   //    Cost::StateHessian Q_mpc, Qf_mpc;
+   //    Cost::ControlHessian ctl_R;
+        
+   //    ctl_R.setZero();
+   //    ctl_R.diagonal() << 0.01, 0.01;
+   //    Q_mpc.setZero();
+   //    Q_mpc.diagonal() << 0, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1;
+   //    Qf_mpc.setZero();
+   //    Qf_mpc.diagonal() << 0, 1e4, 1e4, 1e4, 1e4, 1e4, 1e4, 1e4;
+   //    Cost running_cost_horizon(target_state, Q_mpc, ctl_R);
+   //    TerminalCost terminal_cost_horizon(target_state, Qf_mpc);
+        
+   //    OptimizerResult<Dynamics> results_horizon;
+   //    results_horizon.control_trajectory = hor_control;
+        
+   //    results_horizon = ddp_horizon.run_horizon(cur_state, hor_control, hor_traj_states, *ddp_dyn, running_cost_horizon, terminal_cost_horizon);
+   //    u = results_horizon.control_trajectory.col(0);
+   //    uglobal = {u(0), u(1)};
+
+   //    mpc_writer.save_step(cur_state, u);
+
+
+
+			// double ddth = u(0);
+   //    double tau_0 = u(1);
+   //    State xdot = ddp_dyn->f(cur_state, u);
+   //    double ddx = xdot(3);
+   //    double ddpsi = xdot(4);
+   //    Eigen::Vector3d ddq, dq;
+   //    ddq << ddx, ddpsi, ddth;
+   //    dq = cur_state.segment(3,3);
+   //    c_forces dy_forces = ddp_dyn->dynamic_forces(cur_state, u);
+   //    //double tau_1 = (dy_forces.A.block<1,3>(2,0)*ddq) + (dy_forces.C.block<1,3>(2,0)*dq) + (dy_forces.Q(2)) - (dy_forces.Gamma_fric(2));
+   //    double tau_1 = dy_forces.A.block<1,3>(2,0)*ddq;
+   //    tau_1 += dy_forces.C.block<1,3>(2,0)*dq;
+   //    tau_1 += dy_forces.Q(2);
+   //    tau_1 -= dy_forces.Gamma_fric(2);
+   //    tau_L = -0.5*(tau_1+tau_0);
+   //   	tau_R = -0.5*(tau_1-tau_0);
+
+   //   	uglobal = {tau_L,tau_R};
+   //  }
+
+  // }
+  // MODE = 4;
+// }

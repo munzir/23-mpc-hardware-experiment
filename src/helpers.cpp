@@ -112,7 +112,7 @@ void updateAugStateReference(Vector6d& state, double dt, Vector2d& AugState){
 
 	double R = 0.25;  /// Radius of wheel 25cm;
 	AugState(0) = AugState(0) + dt*(R*state(3)*cos(state(4)));   //x0 = x0 + dt*dx0; and dx0 = dx*cos(psi); 
-	AugState(1) = AugState(1) + dt*(R*state(3)*sin(state(4)));   //x0 = x0 + dt*dx0; and dx0 = dx*sin(psi);
+	AugState(1) = AugState(1) + dt*(R*state(3)*sin(state(4)));   //y0 = y0 + dt*dy0; and dy0 = dx*sin(psi);
 
 }
 
