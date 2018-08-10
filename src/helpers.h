@@ -29,12 +29,14 @@
 #include <imud.h>
 #include <pciod.h>
 
-#include <dynamics/SkeletonDynamics.h>
-#include <robotics/parser/dart_parser/DartLoader.h>
-#include <simulation/World.h>
+#include <dart/dart.hpp>
+#include <dart/utils/urdf/urdf.hpp>
+//#include <dynamics/SkeletonDynamics.h>
+//#include <robotics/parser/dart_parser/DartLoader.h>
+//#include <simulation/World.h>
 #include <initModules.h>
-#include <kinematics/BodyNode.h>
-#include <math/UtilsRotation.h>
+//#include <kinematics/BodyNode.h>
+//#include <math/UtilsRotation.h>
 
 #include <kore.hpp>
 
@@ -44,7 +46,10 @@
 #include <ddp/util.hpp>
 
 using namespace Eigen;
-using namespace dynamics;
+using namespace dart::dynamics;
+using namespace dart::simulation;
+using namespace dart::common;
+using namespace dart::math;
 
 using Scalar = double;  
 using Dynamics = Krang3D<Scalar>;
@@ -120,8 +125,8 @@ int mMPCHorizon;
 Eigen::Matrix<double, 8, 1> mMPCStatePenalties;
 Eigen::Matrix<double, 8, 1> mMPCTerminalStatePenalties;
 Eigen::Matrix<double, 2, 1> mMPCControlPenalties;
-double time;
-double time_old = 0;
+double time_ddp;
+double time_previous = 0;
 
 /* ******************************************************************************************** */
 // All the freaking gains
@@ -186,7 +191,7 @@ void updateDart (double imu);
 void getImu (ach_channel_t* imuChan, double& _imu, double& _imuSpeed, double dt, 
              filter_kalman_t* kf);
 
-/// Reads FT data from ach channels
+/*/// Reads FT data from ach channels
 bool getFT (somatic_d_t& daemon_cx, ach_channel_t& ft_chan, Vector6d& data);
 
 /// Computes the offset due to the weights of the end-effector in the FT sensor readings
@@ -198,7 +203,7 @@ void computeExternal (const Vector6d& input, SkeletonDynamics& robot, Vector6d& 
 
 /// Given the wrench at the FT sensor givers the wrench on the wheels
 void computeWheelWrench(const Vector6d& wrenchSensor, SkeletonDynamics& robot, Vector6d& wheelWrench, bool left);
-
+*/
 /// ........
 void readGains();
 
