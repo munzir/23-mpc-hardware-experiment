@@ -168,7 +168,7 @@ void ComputeDDPTrajectory(Vector6d& state, Vector2d& AugState) {
   int max_iterations = mDDPMaxIter;
   
 
-  mDDPDynamics = new Dynamics(p);
+  mDDPDynamics = new DDPDynamics(p);
   
   // Initial state 
   // State x0 = getCurrentState();
@@ -178,7 +178,7 @@ void ComputeDDPTrajectory(Vector6d& state, Vector2d& AugState) {
   cout << "initState: " << x0.transpose() << endl;
   // Dynamics::State xf; xf << 2, 0, 0, 0, 0, 0, 0.01, 5;
   // Dynamics::State xf; xf << 5, 0, 0, 0, 0, 0, 5, 0;
-  Dynamics::ControlTrajectory u = Dynamics::ControlTrajectory::Zero(2, time_steps);
+  DDPDynamics::ControlTrajectory u = DDPDynamics::ControlTrajectory::Zero(2, time_steps);
 
   // Costs
   Cost::StateHessian Q;
@@ -200,7 +200,7 @@ void ComputeDDPTrajectory(Vector6d& state, Vector2d& AugState) {
   DDP_Opt trej_ddp (mMPCdt, time_steps, max_iterations, &logger, verbose);
 
   // Get initial trajectory from DDP
-  OptimizerResult<Dynamics> DDP_traj = trej_ddp.run(x0, u, *mDDPDynamics, cp_cost, cp_terminal_cost);
+  OptimizerResult<DDPDynamics> DDP_traj = trej_ddp.run(x0, u, *mDDPDynamics, cp_cost, cp_terminal_cost);
 
   
   mDDPStateTraj = DDP_traj.state_trajectory;
@@ -298,10 +298,10 @@ void *MPCDDPCompute(void *) {
       util::DefaultLogger logger;
       int mpc_horizon = mMPCHorizon; 
       
-      Dynamics::State target_state;
+      DDPDynamics::State target_state;
       target_state = mDDPStateTraj.col(mMPCSteps + mpc_horizon);
-      Dynamics::ControlTrajectory hor_control = Dynamics::ControlTrajectory::Zero(2, mpc_horizon);
-      Dynamics::StateTrajectory hor_traj_states = mDDPStateTraj.block(0, mMPCSteps, 8, mpc_horizon);
+      DDPDynamics::ControlTrajectory hor_control = DDPDynamics::ControlTrajectory::Zero(2, mpc_horizon);
+      DDPDynamics::StateTrajectory hor_traj_states = mDDPStateTraj.block(0, mMPCSteps, 8, mpc_horizon);
       
       DDP_Opt ddp_horizon(mMPCdt, mpc_horizon, max_iterations, &logger, verbose);
       
@@ -317,7 +317,7 @@ void *MPCDDPCompute(void *) {
       Cost running_cost_horizon(target_state, Q_mpc, ctl_R);
       TerminalCost terminal_cost_horizon(target_state, Qf_mpc);
       
-      OptimizerResult<Dynamics> results_horizon;
+      OptimizerResult<DDPDynamics> results_horizon;
       results_horizon.control_trajectory = hor_control;
       
       results_horizon = ddp_horizon.run_horizon(cur_state, hor_control, hor_traj_states, *mDDPDynamics, running_cost_horizon, terminal_cost_horizon);
