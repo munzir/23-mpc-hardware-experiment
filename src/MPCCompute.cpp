@@ -23,6 +23,7 @@
 #include <sstream>
 
 using namespace Eigen;
+using namespace Eigen::Dense;
 using namespace std;
 using namespace Krang;
 using namespace config4cpp;
@@ -269,7 +270,7 @@ void *MPCDDPCompute(void *) {
   while(!initDDP); //Stay here till initDDP is false
 // Initialize the simplified robot
   SkeletonPtr threeDOF = create3DOF_URDF();
-  // simulation::World* World3dof;
+   simulation::World* World3dof;
   World3dof = std::make_shared<World>();
   World3dof->addSkeleton(m3DOF);
   getSimple(m3DOF, robot); 
