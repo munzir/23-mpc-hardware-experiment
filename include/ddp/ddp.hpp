@@ -101,7 +101,7 @@ public:
                 quu_ = d2L_.at(k).bottomRightCorner(DynamicsT::ControlSize, DynamicsT::ControlSize) * dt_ + B.transpose() * Vxx_.at(k + 1) * B;
 
                 bool no_qp = false;
-                if(Eigen::isfinite(u_max.array().abs()).any() || Eigen::isfinite(u_min.array().abs()).any())
+                if(Eigen::numext::isfinite(u_max.array().abs()).any() || Eigen::numext::isfinite(u_min.array().abs()).any())
                 {
                     auto qp_result = boxqp_(quu_, qu_, u_min - u_.col(k), u_max - u_.col(k), lk_.col(std::min(k + 1, H_ - 2)));
                     if(qp_result.result_code < 1)
