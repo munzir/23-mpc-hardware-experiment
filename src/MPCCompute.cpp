@@ -23,7 +23,7 @@
 #include <sstream>
 
 using namespace Eigen;
-using namespace Eigen::Dense;
+//using namespace Eigen::Dense;
 using namespace std;
 using namespace Krang;
 using namespace config4cpp;
@@ -38,7 +38,7 @@ SkeletonPtr create3DOF_URDF()
 {
   dart::utils::DartLoader loader;
   SkeletonPtr threeDOF = 
-      loader.parseSkeleton("/home/panda/myfolder/wholebodycontrol/09-URDF/3DOF-WIP/3dof.urdf");
+      loader.parseSkeleton("/home/munzir/project/09-URDF/3DOF-WIP/3dof.urdf");
   threeDOF->setName("m3DOF");
   
   threeDOF->getJoint(0)->setDampingCoefficient(0, 0.5);
@@ -212,7 +212,7 @@ void ComputeDDPTrajectory(Vector6d& state, Vector2d& AugState) {
 void *MPCDDPCompute(void *) {
   Configuration *  cfg = Configuration::create();
   const char *     scope = "";
-  const char *     configFile = "/home/panda/myfolder/wholebodycontrol/13b-3DUnification-UnlockedJoints/examples/3dofddp/controlParams.cfg";
+  const char *     configFile = "../src/controlParams.cfg";
   const char * str;
   std::istringstream stream;
 
@@ -270,29 +270,32 @@ void *MPCDDPCompute(void *) {
   while(!initDDP); //Stay here till initDDP is false
 // Initialize the simplified robot
   SkeletonPtr threeDOF = create3DOF_URDF();
-   simulation::World* World3dof;
+  // simulation::World* World3dof;
   World3dof = std::make_shared<World>();
   World3dof->addSkeleton(m3DOF);
   getSimple(m3DOF, robot); 
 	while(!initDDP);  // Stay here till initDDP is false
   computeDDPTrajectory(state,AugState);
 	
-  if(!norm(mDDPStateTraj.block<2,1>(6,mDDPStateTraj.cols()) - mGoalState.tail(2)) < 0.1){
+  /*if(!norm(mDDPStateTraj.block<2,1>(6,mDDPStateTraj.cols()) - mGoalState.tail(2)) < 0.1){
     	initDDP = false;
     	MODE = 4;
   }
   else
-  {
+  {*/
     MODE = 7;  // Change MODE to MPC Mode
     // writer.save_trajectory(ddp_state_traj, ddp_ctl_traj, "initial_traj.csv");
-    double t = aa_tm_now();
-    Scalar tf = mFinalTime;
-    for(double i=t;i<t+tf;i+mpc_dt){
-      getSimple(m3DOF, mkrang);
+    struct timespec t_prev, t_now = aa_tm_now();
+		t_prev = t_now;
+		double initialtime = (double)aa_tm_timespec2sec(t_now);
+	  Scalar tf = mFinalTime;
+    double i = initialtime;
+		while(i<initialtime+tf){
+      getSimple(m3DOF, robot);
       State cur_state;  // Initialize the new current state
       cur_state << state(2),state(4),state(0),state(3),state(5),state(1),AugState;
   
-      mMPCSteps = cur_mpc_steps;
+     // mMPCSteps = cur_mpc_steps;
       int max_iterations = mMPCMaxIter; 
       bool verbose = true; 
       util::DefaultLogger logger;
@@ -327,8 +330,11 @@ void *MPCDDPCompute(void *) {
 
       mMPCWriter.save_step(cur_state, mMPCControlRef);
       counterc = 0;
+			t_now = aa_tm_now();
+			double dt = (double)aa_tm_timespec2sec(aa_tm_sub(t_now, t_prev));				
+			i = i+dt;		
     }
-  }
+ // }
   MODE = 4;
 }
    //  for(i=t;t<t+tf;t+mpc_dt){
