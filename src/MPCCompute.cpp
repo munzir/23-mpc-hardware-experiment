@@ -6,8 +6,6 @@
  */
 
 #include "helpers.h"
-#include "krangddp.h"
-#include <config4cpp/Configuration.h>
 
 
 
@@ -27,6 +25,7 @@
 using namespace Eigen;
 using namespace std;
 using namespace Krang;
+using namespace config4cpp;
 
 
 /* ****************************************** */
