@@ -4,8 +4,6 @@
 cmake_minimum_required(VERSION 3.1)
 project(balancing)
 
-set(COMMON_LIB_PATH "../common")
-
 find_package(DART 6.3.0 REQUIRED COMPONENTS utils-urdf gui CONFIG)
 
 # Set the top level directory for use in the code
@@ -37,6 +35,7 @@ add_definitions(-DMASS_TABLE_PATH="${massTablePathVal}")
 #link_libraries(amino ntcan protobuf-c ach somatic stdc++ filter pcio pthread ncurses dart fcl tinyxml tinyxml2 kore assimp GL)
 link_libraries(amino ntcan protobuf-c ach somatic stdc++ filter pthread ncurses dart fcl tinyxml tinyxml2 kore assimp GL config4cpp)
 include_directories(/usr/include/dart)
+include_directories(/usr/local/include/config4cpp)
 
 
 # Include Eigen
