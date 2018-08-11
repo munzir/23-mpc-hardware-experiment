@@ -1,5 +1,6 @@
 file(REMOVE_RECURSE
   "CMakeFiles/Main.dir/src/helpers.cpp.o"
+  "CMakeFiles/Main.dir/src/MPCCompute.cpp.o"
   "libMain.pdb"
   "libMain.so"
 )

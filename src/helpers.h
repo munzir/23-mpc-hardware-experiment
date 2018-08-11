@@ -44,6 +44,7 @@
 #include <ddp/ddp.hpp>
 #include <ddp/mpc.hpp>
 #include <ddp/util.hpp>
+#include <krangddp.h>
 
 using namespace Eigen;
 using namespace dart::dynamics;
@@ -76,9 +77,9 @@ typedef Matrix<double, 6, 6> Matrix6d;			///< A typedef for convenience to conta
 somatic_d_t daemon_cx;				///< The context of the current daemon
 
 Krang::Hardware* krang;				///< Interface for the motor and sensors on the hardware
-simulation::World* world;			///< the world representation in dart
-SkeletonDynamics* robot;			///< the robot representation in dart
-simulation::World* World3dof;	    ///< the 3DOF world representation in dart
+WorldPtr world;			///< the world representation in dart
+SkeletonPtr robot;			///< the robot representation in dart
+simulationPtr World3dof;	    ///< the 3DOF world representation in dart
 
 Somatic__WaistCmd *waistDaemonCmd = somatic_waist_cmd_alloc(); ///< Cmds for waist daemon
 ach_channel_t js_chan;				///< Read joystick data on this channel
