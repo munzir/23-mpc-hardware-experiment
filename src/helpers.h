@@ -47,20 +47,20 @@
 #include <krangddp.h>
 
 using namespace Eigen;
-using namespace dart::dynamics;
 using namespace dart::simulation;
 using namespace dart::common;
 using namespace dart::math;
+using namespace dart::dynamics;
 
 using Scalar = double;  
-using Dynamics = Krang3D<Scalar>;
-using DDP_Opt = optimizer::DDP<Dynamics>;
+using DDPDynamics = Krang3D<Scalar>;
+using DDP_Opt = optimizer::DDP<DDPDynamics>;
 using Cost = Krang3DCost<Scalar>;
 using TerminalCost = Krang3DTerminalCost<Scalar>;
-using StateTrajectory = typename Dynamics::StateTrajectory ;
-using ControlTrajectory= typename Dynamics::ControlTrajectory ;
-using State = typename Dynamics::State;
-using Control = typename Dynamics::Control;
+using StateTrajectory = typename DDPDynamics::StateTrajectory ;
+using ControlTrajectory= typename DDPDynamics::ControlTrajectory ;
+using State = typename DDPDynamics::State;
+using Control = typename DDPDynamics::Control;
 
 
 bool myDebug;
@@ -107,7 +107,7 @@ double counterc = 0;
 //Parameters for DDP
 ControlTrajectory mDDPControlTraj;
 StateTrajectory mDDPStateTraj;
-Dynamics *mDDPDynamics;
+DDPDynamics *mDDPDynamics;
 Control mMPCControlRef;  // Store all the reference trajectory MPC compute
 Control u;  // Actual Control that is being given
 State mMPCStateRef;
