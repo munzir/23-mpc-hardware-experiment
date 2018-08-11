@@ -14,6 +14,7 @@ set(CMAKE_INSTALL_PREFIX /usr)
 #set(CMAKE_C_FLAGS --std=c++11 -g)
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -g -std=gnu++0x")
 
+
 # Guard against in-source builds
 if(${CMAKE_SOURCE_DIR} STREQUAL ${CMAKE_BINARY_DIR})
   message(FATAL_ERROR "In-source builds are not allowed. You may need to remove CMakeCache.txt.")
@@ -32,7 +33,8 @@ add_definitions(-DMASS_TABLE_PATH="${massTablePathVal}")
 # NOTE: Ideally we would like to 'find' these packages but for now, we assume they are either 
 # in /usr/lib or /usr/local/lib
 #link_libraries(amino ntcan protobuf-c ach somatic stdc++ filter pcio pthread ncurses dart fcl tinyxml tinyxml2 kore assimp GL)
-link_libraries(amino ntcan protobuf-c ach somatic stdc++ filter pthread ncurses dart fcl tinyxml tinyxml2 kore assimp GL)include_directories(/usr/include/dart)
+link_libraries(amino ntcan protobuf-c ach somatic stdc++ filter pthread ncurses dart fcl tinyxml tinyxml2 kore assimp GL)
+include_directories(/usr/include/dart)
 
 
 # Include Eigen
@@ -46,15 +48,14 @@ include_directories(/usr/local/include/eigen3)
 
 # Include the project files
 include_directories(src)
-include_directories(../../../experiments/common/library)
-include_directories(../../../experiments/common/)
+include_directories(../../experiments/common/library)
+include_directories(../../experiments/common/)
 include_directories(${DART_INCLUDE_DIRS})
 
 # =====================================================
 #Including DDP Files
 include_directories(${CMAKE_CURRENT_SOURCE_DIR}/include)
 
-add_library(ddp INTERFACE)
 #target_include_directories(ddp INTERFACE ${CMAKE_CURRENT_SOURCE_DIR}/include)
 file(GLOB DDP_SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/include/ddp/*.hpp")
 #target_sources(ddp INTERFACE ${DDP_SOURCES})
@@ -69,14 +70,15 @@ list(SORT scripts_source)
 add_library(Main SHARED ${main_source})
 set(MainDependents kore balancing)
 
+ add_library(ddp INTERFACE)
+target_include_directories(ddp INTERFACE ${CMAKE_CURRENT_SOURCE_DIR}/include)
+	target_sources(ddp INTERFACE ${DDP_SOURCES})
 # Build scripts
 message(STATUS "\n-- SCRIPTS: ")
 foreach(script_src_file ${scripts_source})
 	get_filename_component(script_base ${script_src_file} NAME_WE)
 	message(STATUS "Adding script ${script_src_file} with base name ${script_base}" )
 	add_executable(${script_base} ${script_src_file})
-	target_include_directories(ddp INTERFACE ${CMAKE_CURRENT_SOURCE_DIR}/include)
-	target_sources(ddp INTERFACE ${DDP_SOURCES})
 	target_link_libraries(${script_base} Main )
 	#target_link_libraries(${script_base} ${GRIP_LIBRARIES} ${DART_LIBRARIES} ${DARTExt_LIBRARIES} ${wxWidgets_LIBRARIES}) 
 	target_link_libraries(${script_base} ${DART_LIBRARIES} ${wxWidgets_LIBRARIES}) 

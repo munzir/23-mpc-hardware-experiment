@@ -1,4 +1,4 @@
-# Install script for directory: /home/cerdogan/Documents/Software/project/krang/demos/balancing/mpc_steps
+# Install script for directory: /home/munzir/project/krang/demos/23-mpc-hardware-experiment
 
 # Set the install prefix
 if(NOT DEFINED CMAKE_INSTALL_PREFIX)
@@ -40,5 +40,5 @@ endif()
 
 string(REPLACE ";" "\n" CMAKE_INSTALL_MANIFEST_CONTENT
        "${CMAKE_INSTALL_MANIFEST_FILES}")
-file(WRITE "/home/cerdogan/Documents/Software/project/krang/demos/balancing/mpc_steps/build/${CMAKE_INSTALL_MANIFEST}"
+file(WRITE "/home/munzir/project/krang/demos/23-mpc-hardware-experiment/build/${CMAKE_INSTALL_MANIFEST}"
      "${CMAKE_INSTALL_MANIFEST_CONTENT}")

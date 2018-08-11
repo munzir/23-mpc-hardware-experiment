@@ -71,7 +71,8 @@ void getState(Vector6d& state, double dt, Vector3d* com_) {
   krang->updateSensors(dt);
 
 	// Calculate the COM	
-	Vector3d com = robot->getWorldCOM();
+//	Vector3d com = robot->getWorldCOM();
+	Vector3d com = Eigen::Vector3d::Zero();
 	com(2) -= 0.264;
 //	com(0) += 0.008;
 //	com(0) += 0.0054; // (0.0101 - 0.0015 - 0.006 - 0.0025 + 0.005 + 0.0025 + 0.0055);
