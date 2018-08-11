@@ -45,12 +45,14 @@
 #include <ddp/mpc.hpp>
 #include <ddp/util.hpp>
 #include <krangddp.h>
+#include <config4cpp/Configuration.h>
 
 using namespace Eigen;
 using namespace dart::simulation;
 using namespace dart::common;
 using namespace dart::math;
 using namespace dart::dynamics;
+using namespace config4cpp;
 
 using Scalar = double;  
 using DDPDynamics = Krang3D<Scalar>;
