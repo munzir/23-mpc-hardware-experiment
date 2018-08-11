@@ -1,7 +1,0 @@
-/home/munzir/project/krang/demos/23-mpc-hardware-experiment/build/CMakeFiles/edit_cache.dir
-/home/munzir/project/krang/demos/23-mpc-hardware-experiment/build/CMakeFiles/rebuild_cache.dir
-/home/munzir/project/krang/demos/23-mpc-hardware-experiment/build/CMakeFiles/01-balance-kore.run.dir
-/home/munzir/project/krang/demos/23-mpc-hardware-experiment/build/CMakeFiles/01-balance-kore.dir
-/home/munzir/project/krang/demos/23-mpc-hardware-experiment/build/CMakeFiles/00-balance.run.dir
-/home/munzir/project/krang/demos/23-mpc-hardware-experiment/build/CMakeFiles/00-balance.dir
-/home/munzir/project/krang/demos/23-mpc-hardware-experiment/build/CMakeFiles/Main.dir
