@@ -81,7 +81,9 @@ somatic_d_t daemon_cx;				///< The context of the current daemon
 Krang::Hardware* krang;				///< Interface for the motor and sensors on the hardware
 WorldPtr world;			///< the world representation in dart
 SkeletonPtr robot;			///< the robot representation in dart
-//simulationPtr World3dof;	    ///< the 3DOF world representation in dart
+SkeletonPtr m3DOF;      //< 3DOF robot representation in dart
+WorldPtr World3dof;	    ///< the 3DOF world representation in dart
+
 
 Somatic__WaistCmd *waistDaemonCmd = somatic_waist_cmd_alloc(); ///< Cmds for waist daemon
 ach_channel_t js_chan;				///< Read joystick data on this channel
@@ -116,6 +118,8 @@ State mMPCStateRef;
 int mSteps, mBeginStep;
 int mMPCSteps;
 double mMPCdt;
+double mR = 0.25;
+double mL = 0.68;
 CSV_writer<Scalar> mMPCWriter;
 State mGoalState;
 double mFinalTime;
@@ -128,6 +132,7 @@ int mMPCHorizon;
 Eigen::Matrix<double, 8, 1> mMPCStatePenalties;
 Eigen::Matrix<double, 8, 1> mMPCTerminalStatePenalties;
 Eigen::Matrix<double, 2, 1> mMPCControlPenalties;
+Eigen::Matrix<double, 18, 1> mTauLim;
 double time_ddp;
 double time_previous = 0;
 
@@ -150,7 +155,7 @@ extern Vector6d K;
 
 extern Vector6d state;                        //State for MPC
 extern Vector6d refstate;		      //RefState for MPC
-extern Vector6d AugState;                     //Augment State for MPC
+extern Vector2d AugState;                     //Augment State for MPC
 
 /* ******************************************************************************************** *
 // The arm indices to set/get configurations from dart
@@ -215,6 +220,9 @@ void updateAugStateReference(Vector6d& state, double dt, Vector2d& AugState);
 
 // Computing MPC-DDP function
 void *MPCDDPCompute(void *);
+
+// Compute DDP Trajectory Function
+void computeDDPTrajectory(Vector6d& state, Vector2d& AugState);
 
 /* ******************************************************************************************** */
 // Useful macros
