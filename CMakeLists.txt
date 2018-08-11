@@ -1,8 +1,10 @@
 # @author Can Erdogan
 # @date Jan 15, 2012
 
-cmake_minimum_required(VERSION 2.6)
+cmake_minimum_required(VERSION 3.1)
 project(balancing)
+
+set(COMMON_LIB_PATH "../common")
 
 find_package(DART 6.3.0 REQUIRED COMPONENTS utils-urdf gui CONFIG)
 
@@ -48,8 +50,8 @@ include_directories(/usr/local/include/eigen3)
 
 # Include the project files
 include_directories(src)
-include_directories(../../experiments/common/library)
-include_directories(../../experiments/common/)
+include_directories(/home/munzir/project/krang/experiments/common/library)
+include_directories(/home/munzir/project/krang/experiments/common/)
 include_directories(${DART_INCLUDE_DIRS})
 
 # =====================================================
@@ -62,7 +64,7 @@ file(GLOB DDP_SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/include/ddp/*.hpp")
 
 
 # Collect the source, script and fortran files
-file(GLOB main_source "src/*.cpp" "src/*.c" "../../experiments/common/library/*.cpp")
+file(GLOB main_source "src/*.cpp" "src/*.c" "/home/munzir/project/krang/experiments/common/library/*.cpp")
 file(GLOB scripts_source "exe/*.cpp")
 list(SORT scripts_source)
 
