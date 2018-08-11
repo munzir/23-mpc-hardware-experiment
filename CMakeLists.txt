@@ -35,13 +35,13 @@ add_definitions(-DMASS_TABLE_PATH="${massTablePathVal}")
 # NOTE: Ideally we would like to 'find' these packages but for now, we assume they are either 
 # in /usr/lib or /usr/local/lib
 #link_libraries(amino ntcan protobuf-c ach somatic stdc++ filter pcio pthread ncurses dart fcl tinyxml tinyxml2 kore assimp GL)
-link_libraries(amino ntcan protobuf-c ach somatic stdc++ filter pthread ncurses dart fcl tinyxml tinyxml2 kore assimp GL eigen3 config4cpp)
+link_libraries(amino ntcan protobuf-c ach somatic stdc++ filter pthread ncurses dart fcl tinyxml tinyxml2 kore assimp GL config4cpp)
 include_directories(/usr/include/dart)
 
 
 # Include Eigen
-#include_directories(/usr/include/eigen3)
-#include_directories(/usr/local/include/eigen3)
+include_directories(/usr/include/eigen3)
+include_directories(/usr/local/include/eigen3)
 
 # ================================================================================================
 # Build the codebase library and the executables
