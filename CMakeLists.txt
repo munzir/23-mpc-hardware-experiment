@@ -6,6 +6,9 @@ project(balancing)
 
 find_package(DART 6.3.0 REQUIRED COMPONENTS utils-urdf gui CONFIG)
 
+option(balancing_SYSTEM_EIGEN "Use system-installed version of Eigen" OFF)
+#option(DDP_BUILD_EXAMPLES "Build examples" ON)
+
 # Set the top level directory for use in the code
 add_definitions(-DTOP_LEVEL_PATH="${CMAKE_SOURCE_DIR}")
 
@@ -25,6 +28,16 @@ set(massTablePathVal "/home/cerdogan/Documents/Krang/Documentation/Design/Mass\ 
 	CACHE STRING "Path to the mass table in your system - should be in doc/krang.git/design/mass table")
 add_definitions(-DMASS_TABLE_PATH="${massTablePathVal}")
 
+# Set eigen folder given in directory
+set(EIGEN_INCLUDE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/eigen)
+if(balancing_SYSTEM_EIGEN)
+    find_package(Eigen)
+    if(EIGEN_FOUND)
+        message(STATUS "Eigen found: ${EIGEN_INCLUDE_DIR}")
+    else()
+        message(FATAL_ERROR "Eigen NOT found!")
+    endif()
+endif()
 
 # ================================================================================================
 # Include and link to libraries
@@ -39,8 +52,8 @@ include_directories(/usr/local/include/config4cpp)
 
 
 # Include Eigen
-include_directories(/usr/include/eigen3)
-include_directories(/usr/local/include/eigen3)
+#include_directories(/usr/include/eigen3)
+#include_directories(/usr/local/include/eigen3)
 
 # ================================================================================================
 # Build the codebase library and the executables
@@ -52,7 +65,8 @@ include_directories(src)
 include_directories(/home/munzir/project/krang/experiments/common/library)
 include_directories(/home/munzir/project/krang/experiments/common/)
 include_directories(${DART_INCLUDE_DIRS})
-
+#including the Eigen direcotry given in folder
+include_directories(${EIGEN_INCLUDE_DIR})
 # =====================================================
 #Including DDP Files
 include_directories(${CMAKE_CURRENT_SOURCE_DIR}/include)

@@ -74,7 +74,9 @@ public:
         }
 
         State x = initial_state, xold = initial_state;
+
         Control u;
+        StateTrajectory xs;
         Scalar true_cost = cost_function.c(xold, initial_control_trajectory.col(0));
         OptimizerResult<Dynamics> result;
         result.control_trajectory = initial_control_trajectory;
@@ -99,6 +101,19 @@ public:
             // Run the optimizer to obtain the next control
             result = opt_.run(xold, result.control_trajectory, dynamics, cost_function, terminal_cost_function, std::forward<ARGS>(args)...);
             u = result.control_trajectory.col(0);
+            xs = result.state_trajectory;
+            
+            if(verbose_)
+            {
+                logger_->info("Obtained state trajectory from optimizer: ");
+                for(int m = 0; m < xs.cols(); ++m) {
+                    logger_->info("\n");
+                    for (int n = 0; n < xs.rows(); ++n) {
+                        logger_->info("%f ", xs(n, m));
+                    }
+                }
+                logger_->info("\n");
+            }
             if(verbose_)
             {
                 logger_->info("Obtained control from optimizer: ");
@@ -108,6 +123,7 @@ public:
 
             // Apply the control to the plant and obtain the new state
             x = plant.f(xold, u);
+
             if(verbose_)
             {
                 logger_->info("Received new state from plant: ");
