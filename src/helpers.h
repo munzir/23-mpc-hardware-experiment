@@ -44,8 +44,9 @@
 #include <ddp/ddp.hpp>
 #include <ddp/mpc.hpp>
 #include <ddp/util.hpp>
-#include <krangddp.h>
+#include "krangddp.h"
 #include <config4cpp/Configuration.h>
+
 
 using namespace Eigen;
 using namespace dart::simulation;

@@ -18,7 +18,7 @@
 
 
 
-#include <iostream>
+//#include <iostream>
 #include <fstream>
 #include <sstream>
 
@@ -212,7 +212,7 @@ void ComputeDDPTrajectory(Vector6d& state, Vector2d& AugState) {
 void *MPCDDPCompute(void *) {
   Configuration *  cfg = Configuration::create();
   const char *     scope = "";
-  const char *     configFile = "../src/controlParams.cfg";
+  const char *     configFile = "/home/munzir/project/krang/23-mpc-hardware-experiment/src/controlParams.cfg";
   const char * str;
   std::istringstream stream;
 
