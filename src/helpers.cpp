@@ -734,12 +734,14 @@ void *MPCDDPCompute(void *) {
 	while(!initDDP);  // Stay here till initDDP is false
   computeDDPTrajectory(state,AugState);
 
-    /*if(!norm(mDDPStateTraj.block<2,1>(6,mDDPStateTraj.cols()) - mGoalState.tail(2)) < 0.1){
+   Eigen::Vector2d ch;
+   ch << (mDDPStateTraj.block<2,1>(6,mDDPStateTraj.cols()) - mGoalState.tail(2));
+   if(ch.norm() < 0.1){
       	initDDP = false;
       	MODE = 4;
     }
     else
-    {*/
+    {
       MODE = 7;  // Change MODE to MPC Mode
       // writer.save_trajectory(ddp_state_traj, ddp_ctl_traj, "initial_traj.csv");
       struct timespec t_prev, t_now = aa_tm_now();
@@ -791,6 +793,6 @@ void *MPCDDPCompute(void *) {
   			double dt = (double)aa_tm_timespec2sec(aa_tm_sub(t_now, t_prev));				
   			i = i+dt;		
       }
-   // }
+   }
     MODE = 4;
   }
