@@ -47,7 +47,7 @@ endif()
 # in /usr/lib or /usr/local/lib
 #link_libraries(amino ntcan protobuf-c ach somatic stdc++ filter pcio pthread ncurses dart fcl tinyxml tinyxml2 kore assimp GL)
 link_libraries(amino ntcan protobuf-c ach somatic stdc++ filter pthread ncurses dart fcl tinyxml tinyxml2 kore assimp GL config4cpp)
-include_directories(/usr/include/dart)
+#include_directories(/usr/include/dart)
 include_directories(/usr/local/include/config4cpp)
 
 
@@ -67,14 +67,17 @@ include_directories(/home/munzir/project/krang/experiments/common/)
 include_directories(${DART_INCLUDE_DIRS})
 #including the Eigen direcotry given in folder
 include_directories(${EIGEN_INCLUDE_DIR})
+include_directories(${CMAKE_CURRENT_SOURCE_DIR}/include)
 # =====================================================
 #Including DDP Files
-include_directories(${CMAKE_CURRENT_SOURCE_DIR}/include)
+#include_directories(${CMAKE_CURRENT_SOURCE_DIR}/include)
 
 #target_include_directories(ddp INTERFACE ${CMAKE_CURRENT_SOURCE_DIR}/include)
+#file(GLOB DDP_SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/include/ddp/*.hpp")
+add_library(ddp INTERFACE)
+target_include_directories(ddp INTERFACE ${CMAKE_CURRENT_SOURCE_DIR}/include)
 file(GLOB DDP_SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/include/ddp/*.hpp")
-#target_sources(ddp INTERFACE ${DDP_SOURCES})
-
+target_sources(ddp INTERFACE ${DDP_SOURCES})
 
 # Collect the source, script and fortran files
 file(GLOB main_source "src/*.cpp" "src/*.c" "/home/munzir/project/krang/experiments/common/library/*.cpp")
@@ -85,9 +88,9 @@ list(SORT scripts_source)
 add_library(Main SHARED ${main_source})
 set(MainDependents kore balancing)
 
-add_library(ddp INTERFACE)
-target_include_directories(ddp INTERFACE ${CMAKE_CURRENT_SOURCE_DIR}/include)
-target_sources(ddp INTERFACE ${DDP_SOURCES})
+#add_library(ddp INTERFACE)
+#target_include_directories(ddp INTERFACE ${CMAKE_CURRENT_SOURCE_DIR}/include)
+#target_sources(ddp INTERFACE ${DDP_SOURCES})
 
 # Build scripts
 message(STATUS "\n-- SCRIPTS: ")

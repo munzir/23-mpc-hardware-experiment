@@ -5,10 +5,8 @@
  * @brief This file contains helper functions such as imu data retrieval and -+++++++++ing...
  */
 
-#include "helpers.h"
-
-
-
+//#include "helpers.h"
+/*
 
 #include <boost/circular_buffer.hpp>
 // #include <ddp/costs.hpp>
@@ -18,7 +16,7 @@
 
 
 
-//#include <iostream>
+#include <iostream>
 #include <fstream>
 #include <sstream>
 
@@ -26,13 +24,13 @@ using namespace Eigen;
 //using namespace Eigen::Dense;
 using namespace std;
 using namespace Krang;
-using namespace config4cpp;
+//using namespace config4cpp;
 
-
+*/
 /* ****************************************** */
 
 
-
+/*
 
 SkeletonPtr create3DOF_URDF()
 {
@@ -282,7 +280,7 @@ void *MPCDDPCompute(void *) {
     	MODE = 4;
   }
   else
-  {*/
+  {*//*
     MODE = 7;  // Change MODE to MPC Mode
     // writer.save_trajectory(ddp_state_traj, ddp_ctl_traj, "initial_traj.csv");
     struct timespec t_prev, t_now = aa_tm_now();
@@ -336,7 +334,7 @@ void *MPCDDPCompute(void *) {
     }
  // }
   MODE = 4;
-}
+}*/
    //  for(i=t;t<t+tf;t+mpc_dt){
 			// mpc_steps = cur_mpc_steps; ///  Define mpcsteps  
    //    int max_iterations = 15; 
