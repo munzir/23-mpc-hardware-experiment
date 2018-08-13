@@ -619,7 +619,7 @@ void run () {
 	      
 	       // ddq
 				
-/*	       State cur_state;  // Initialize the new current state 
+	       State cur_state;  // Initialize the new current state 
       	 cur_state << state(2),state(4),state(0),state(3),state(5),state(1),AugState;
 				xdot = mDDPDynamics->f(cur_state, u);
 	       ddx = xdot(3);
@@ -652,7 +652,7 @@ void run () {
 	      if(start) {
 			if(debug) cout << "Started..." << endl;
 			somatic_motor_cmd(&daemon_cx, krang->amc, SOMATIC__MOTOR_PARAM__MOTOR_CURRENT, input, 2, NULL);
-			}*/
+			}
 	 	}
 	}
 	cout << "c_: " << c_ << endl;

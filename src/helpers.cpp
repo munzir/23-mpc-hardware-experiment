@@ -715,7 +715,7 @@ void *MPCDDPCompute(void *) {
       cfg->destroy();
   }
   int mSteps = 0;
-  int mMPCSteps = -1; 
+  int mMPCSteps = 0; 
   double mMPCdt = 0.01;
     // mdqFilt = new filter(8, 50);
     // mR = 0.25;
@@ -759,7 +759,7 @@ void *MPCDDPCompute(void *) {
         bool verbose = true; 
         util::DefaultLogger logger;
         int mpc_horizon = mMPCHorizon; 
-        
+        mMPCSteps = floor((i-initialtime)/mMPCdt);  
         DDPDynamics::State target_state;
         target_state = mDDPStateTraj.col(mMPCSteps + mpc_horizon);
         DDPDynamics::ControlTrajectory hor_control = DDPDynamics::ControlTrajectory::Zero(2, mpc_horizon);
