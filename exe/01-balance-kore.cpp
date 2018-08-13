@@ -291,14 +291,14 @@ void run () {
 
 	// Initially the reference position and velocities are zero (don't move!) (and error!)
 	// Initializing here helps to print logs of the previous state
-	Vector6d refState = Vector6d::Zero(), state = Vector6d::Zero(), error = Vector6d::Zero();
+	Vector6d refState = Vector6d::Zero(),/* state = Vector6d::Zero(),*/ error = Vector6d::Zero();
 
 	// Augment two state to represent x0 and y0.
-	Vector2d AugState = Vector2d::Zero();  
+//	Vector2d AugState = Vector2d::Zero();  
 
 	// Read the FT sensor wrenches, shift them on the wheel axis and display
 	size_t c_ = 0;
-	struct timespec t_now, t_prev = aa_tm_now();
+	struct timespec t_now, timeddp_now, t_prev = aa_tm_now();
 	double time = 0.0;
 	Vector6d externalWrench;
 	Vector3d com;
@@ -349,7 +349,7 @@ void run () {
 		if(debug) cout << "\nstate: " << state.transpose() << endl;
 		if(debug) cout << "com: " << com.transpose() << endl;
 		if(debug) cout << "WAIST ANGLE: " << krang->waist->pos[0] << endl;
-		if(c_ % 10 == 0) 
+	/*	if(c_ % 10 == 0) 
 			fprintf(file, "imu: %lf, waist: %lf, lft; <%lf, %lf, %lf>, wheel torque: %lf, waist current: %lf\n", 
 			krang->imu, krang->waist->pos[0],  
 			krang->fts[Krang::LEFT]->lastExternal(0),
@@ -357,7 +357,7 @@ void run () {
 			krang->fts[Krang::LEFT]->lastExternal(2),
 			krang->amc->cur[0], 
 			0.0);
-		if(c_ % 100 == 0) fflush(file);
+		if(c_ % 100 == 0) fflush(file);*/
 
 		// Print the information about the last iteration (after reading effects of it from sensors)
 		// NOTE: Constructor order is NOT the print order
@@ -599,13 +599,15 @@ void run () {
 			if(debug) printf("Mode : %d\tdt: %lf\n", MODE, dt);
 		}
 		else{
-			time_ddp = aa_tm_now();
+		
+			timeddp_now = aa_tm_now();
+			time_ddp = (double)aa_tm_timespec2sec(timeddp_now);
 			double input [2];
 			double ddth, tau_0, ddx, ddpsi, tau_1, tau_L, tau_R;
-			double deltat = time_ddp - time_previous;
-			counterc = counterc + deltat; 
-			time_previous = time_ddp;
-			u = mMPCControlRef.col(floor(counterc/mMPCdt));  // Using counter to get the correct reference
+			double deltat = time_ddp - timeddp_previous;
+			timer = timer + deltat; 
+			timeddp_previous = time_ddp;
+			u = mMPCControlRef.col(floor(timer/mMPCdt));  // Using counter to get the correct reference
 			// Control input from High-level Control
 			ddth = u(0);
 			tau_0 = u(1);
@@ -616,14 +618,15 @@ void run () {
 	      
 	      
 	       // ddq
-	       xdot = mDDPDynamics->f(cur_state, u);
+				
+/*	       State cur_state;  // Initialize the new current state 
+      	 cur_state << state(2),state(4),state(0),state(3),state(5),state(1),AugState;
+				xdot = mDDPDynamics->f(cur_state, u);
 	       ddx = xdot(3);
 	       ddpsi = xdot(4);
 	       ddq << ddx, ddpsi, ddth;
 	      
 	       // dq
-	       State cur_state;  // Initialize the new current state
-      	   cur_state << state(2),state(4),state(0),state(3),state(5),state(1),AugState;
 	       dq = cur_state.segment(3,3);
 	      
 	      // A, C, Q and Gamma_fric
@@ -649,12 +652,8 @@ void run () {
 	      if(start) {
 			if(debug) cout << "Started..." << endl;
 			somatic_motor_cmd(&daemon_cx, krang->amc, SOMATIC__MOTOR_PARAM__MOTOR_CURRENT, input, 2, NULL);
-			}
-			if(time - time_old > time + mMPCdt){
-				counterc++;
-				time_old = time;
-			}
-      	}
+			}*/
+	 	}
 	}
 	cout << "c_: " << c_ << endl;
 
@@ -736,7 +735,7 @@ int main(int argc, char* argv[]) {
 	assert(fabs(kasdf) < 10.0);
 
 	// Load the world and the robot
-	DartLoader dl;
+	dart::utils::DartLoader dl;
 	// world = dl.parseWorld("../../../experiments/common/scenes/01-World-Robot.urdf");
 	world = dl.parseWorld("/etc/kore/scenes/01-World-Robot.urdf");
 	assert((world != NULL) && "Could not find the world");

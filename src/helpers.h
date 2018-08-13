@@ -6,6 +6,8 @@
  */
 
 #pragma once
+#ifndef HELPERS_H
+#define HELPERS_H
 
 #include <Eigen/Dense>
 
@@ -54,6 +56,7 @@ using namespace dart::common;
 using namespace dart::math;
 using namespace dart::dynamics;
 using namespace config4cpp;
+
 
 using Scalar = double;  
 using DDPDynamics = Krang3D<Scalar>;
@@ -107,7 +110,7 @@ char b [10];						///< Stores the joystick button inputs
 double x [6];						///< Stores the joystick axes inputs
 
 double uglobal [2];                            //Input for the wheels global
-double counterc = 0;
+double timer = 0;
 /* ******************************************************************************************* */
 //Parameters for DDP
 ControlTrajectory mDDPControlTraj;
@@ -135,7 +138,7 @@ Eigen::Matrix<double, 8, 1> mMPCTerminalStatePenalties;
 Eigen::Matrix<double, 2, 1> mMPCControlPenalties;
 Eigen::Matrix<double, 18, 1> mTauLim;
 double time_ddp;
-double time_previous = 0;
+double timeddp_previous = 0;
 
 /* ******************************************************************************************** */
 // All the freaking gains
@@ -154,9 +157,9 @@ extern Vector6d K_balHigh;
 extern Vector2d J_balHigh;
 extern Vector6d K;	
 
-extern Vector6d state;                        //State for MPC
+Vector6d state = Vector6d::Zero();                        //State for MPC
 extern Vector6d refstate;		      //RefState for MPC
-extern Vector2d AugState;                     //Augment State for MPC
+Vector2d AugState = Vector2d::Zero();                     //Augment State for MPC
 
 /* ******************************************************************************************** *
 // The arm indices to set/get configurations from dart
@@ -241,3 +244,5 @@ void computeDDPTrajectory(Vector6d& state, Vector2d& AugState);
 #define eig7(x) (Vector7d() << (x)[0], (x)[1], (x)[2], (x)[3], (x)[4], (x)[5], (x)[6]).finished()
 
 /* ******************************************************************************************** */
+
+#endif
